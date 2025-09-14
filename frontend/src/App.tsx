@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { ChatProvider } from "./contexts/ChatContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LoadingSpinner from "./components/LoadingSpinner";
 import Navbar from "./components/Navbar";
@@ -12,6 +13,7 @@ import Chat from "./pages/Chat";
 import AdminPage from "./pages/AdminPage";
 import PendingPage from "./pages/PendingPage";
 import ProfilePage from "./pages/ProfilePage";
+import JobApplicants from "./pages/JobApplicants";
 import "./App.css";
 
 const AppContent: React.FC = () => {
@@ -77,6 +79,14 @@ const AppContent: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/job/:id/applicants"
+              element={
+                <ProtectedRoute>
+                  <JobApplicants />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </main>
       </div>
@@ -88,7 +98,9 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <AppContent />
+        <ChatProvider>
+          <AppContent />
+        </ChatProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

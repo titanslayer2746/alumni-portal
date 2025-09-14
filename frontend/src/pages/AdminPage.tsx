@@ -1,19 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { AdminUser, UserRole, UserFilters } from "../types/user";
 import { getUserService } from "../services/userService";
-import { motion } from "framer-motion";
-import {
-  Users,
-  Search,
-  Filter,
-  Trash2,
-  UserCheck,
-  Shield,
-  Settings,
-  Check,
-  X,
-  ChevronDown,
-} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, Filter, Trash2, Check, ChevronDown, User } from "lucide-react";
 
 const AdminPage: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -21,12 +10,13 @@ const AdminPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [filters] = useState<UserFilters>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRole, setSelectedRole] = useState<UserRole | "">("");
   const [selectedStatus, setSelectedStatus] = useState<
     "active" | "deleted" | ""
-  >("active");
+  >("");
   const [deleteDialog, setDeleteDialog] = useState<{
     isOpen: boolean;
     userId: string;
@@ -34,13 +24,16 @@ const AdminPage: React.FC = () => {
   }>({ isOpen: false, userId: "", userName: "" });
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState<{
-    [key: string]: "up" | "down";
-  }>({});
+    top: number;
+    left: number;
+  } | null>(null);
+  const buttonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
   const userService = getUserService();
 
   const loadUsers = async () => {
     setLoading(true);
+    setError(null);
     try {
       const currentFilters: UserFilters = {
         ...filters,
@@ -49,7 +42,7 @@ const AdminPage: React.FC = () => {
         status: selectedStatus || undefined,
       };
 
-      const result = userService.getUsersWithPagination(
+      const result = await userService.getUsersWithPagination(
         currentPage,
         currentFilters
       );
@@ -58,6 +51,7 @@ const AdminPage: React.FC = () => {
       setTotalItems(result.pagination.totalItems);
     } catch (error) {
       console.error("Error loading users:", error);
+      setError(error instanceof Error ? error.message : "Failed to load users");
     } finally {
       setLoading(false);
     }
@@ -75,7 +69,9 @@ const AdminPage: React.FC = () => {
       const isDropdownContent = target.closest("[data-dropdown-content]");
 
       if (openDropdown && !isDropdownButton && !isDropdownContent) {
+        console.log("Closing dropdown due to outside click");
         setOpenDropdown(null);
+        setDropdownPosition(null);
       }
     };
 
@@ -92,8 +88,8 @@ const AdminPage: React.FC = () => {
     setDeleteDialog({ isOpen: true, userId, userName });
   };
 
-  const confirmDelete = () => {
-    const success = userService.deleteUser(deleteDialog.userId);
+  const confirmDelete = async () => {
+    const success = await userService.deleteUser(deleteDialog.userId);
     if (success) {
       loadUsers();
     }
@@ -104,43 +100,59 @@ const AdminPage: React.FC = () => {
     setDeleteDialog({ isOpen: false, userId: "", userName: "" });
   };
 
-  const handleApproveUser = (userId: string) => {
-    const success = userService.updateUserRole(userId, "alumni");
+  const handleApproveUser = async (userId: string) => {
+    const success = await userService.updateUserRole(userId, "alumni");
     if (success) {
       loadUsers();
     }
   };
 
   const toggleDropdown = (userId: string, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    console.log(
+      "Toggle dropdown for user:",
+      userId,
+      "currently open:",
+      openDropdown
+    );
+
     if (openDropdown === userId) {
       setOpenDropdown(null);
+      setDropdownPosition(null);
       return;
     }
 
-    // Check if there's enough space below
-    const button = event.currentTarget as HTMLElement;
-    const rect = button.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    const spaceBelow = viewportHeight - rect.bottom;
-    const dropdownHeight = 120; // Approximate height of dropdown
-
-    const position = spaceBelow < dropdownHeight ? "up" : "down";
-    setDropdownPosition((prev) => ({ ...prev, [userId]: position }));
+    // Calculate position for portal dropdown
+    const button = buttonRefs.current[userId];
+    if (button) {
+      const rect = button.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+      });
+    }
     setOpenDropdown(userId);
   };
 
-  const selectRole = (userId: string, role: UserRole) => {
-    const success = userService.updateUserRole(userId, role);
-    if (success) {
-      loadUsers();
-    }
-    setOpenDropdown(null);
-  };
-
-  const handleUpdateRole = (userId: string, role: UserRole) => {
-    const success = userService.updateUserRole(userId, role);
-    if (success) {
-      loadUsers();
+  const selectRole = async (userId: string, role: UserRole) => {
+    try {
+      console.log("Updating role for user:", userId, "to role:", role);
+      const success = await userService.updateUserRole(userId, role);
+      if (success) {
+        console.log("Role updated successfully");
+        loadUsers();
+      } else {
+        console.error("Failed to update role");
+        setError("Failed to update user role");
+      }
+    } catch (error) {
+      console.error("Error updating role:", error);
+      setError("Failed to update user role");
+    } finally {
+      setOpenDropdown(null);
+      setDropdownPosition(null);
     }
   };
 
@@ -207,29 +219,21 @@ const AdminPage: React.FC = () => {
       <div className="max-w-8xl mx-auto px-8 sm:px-12 lg:px-16 relative z-10">
         {/* Header */}
         <motion.div
-          className="text-center mb-12"
-          initial={{ opacity: 0, y: 50 }}
+          className="mb-6"
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
+          transition={{ duration: 0.6 }}
         >
-          <motion.div
-            className="flex items-center justify-center mb-6"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-red-500 rounded-full flex items-center justify-center pulse-glow">
-              <Shield className="w-8 h-8 text-white" />
+          <div className="flex items-center mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-white mb-1 glow-text">
+                User Management ({totalItems})
+              </h1>
+              <p className="text-gray-300 text-sm">
+                Manage user accounts, roles, and permissions
+              </p>
             </div>
-          </motion.div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-pink-400 via-red-400 to-pink-600 bg-clip-text text-transparent">
-              User Management
-            </span>
-          </h1>
-          <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-            Manage user accounts, roles, and permissions across the platform
-          </p>
+          </div>
         </motion.div>
 
         {/* Main Content Card */}
@@ -240,15 +244,15 @@ const AdminPage: React.FC = () => {
           transition={{ duration: 0.8, delay: 0.3 }}
         >
           {/* Filters Section */}
-          <div className="p-6 border-b border-white/10">
+          <div className="p-3 sm:p-4 border-b border-white/10">
             <motion.form
               onSubmit={handleSearch}
-              className="flex flex-wrap gap-4 items-end"
+              className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
             >
-              <div className="flex-1 min-w-64">
+              <div className="flex-1 min-w-0">
                 <label
                   htmlFor="search"
                   className="block text-sm font-medium text-gray-300 mb-2"
@@ -263,12 +267,12 @@ const AdminPage: React.FC = () => {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Search by name, email, company..."
-                    className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:border-pink-500/50 transition-all duration-300"
+                    className="w-full pl-10 pr-4 py-2 sm:py-3 bg-gray-800 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:border-pink-500/50 transition-all duration-300 text-sm sm:text-base"
                   />
                 </div>
               </div>
 
-              <div>
+              <div className="w-full sm:w-auto">
                 <label
                   htmlFor="role"
                   className="block text-sm font-medium text-gray-300 mb-2"
@@ -284,7 +288,7 @@ const AdminPage: React.FC = () => {
                       setSelectedRole(e.target.value as UserRole | "");
                       handleFilterChange();
                     }}
-                    className="pl-10 pr-4 py-3 bg-gray-800 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:border-pink-500/50 transition-all duration-300 appearance-none cursor-pointer"
+                    className="w-full pl-10 pr-4 py-2 sm:py-3 bg-gray-800 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:border-pink-500/50 transition-all duration-300 appearance-none cursor-pointer text-sm sm:text-base"
                   >
                     <option value="">All Roles</option>
                     <option value="pending">Pending</option>
@@ -294,7 +298,7 @@ const AdminPage: React.FC = () => {
                 </div>
               </div>
 
-              <div>
+              <div className="w-full sm:w-auto">
                 <label
                   htmlFor="status"
                   className="block text-sm font-medium text-gray-300 mb-2"
@@ -310,7 +314,7 @@ const AdminPage: React.FC = () => {
                     );
                     handleFilterChange();
                   }}
-                  className="px-4 py-3 bg-gray-800 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:border-pink-500/50 transition-all duration-300 appearance-none cursor-pointer"
+                  className="w-full px-4 py-2 sm:py-3 bg-gray-800 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:border-pink-500/50 transition-all duration-300 appearance-none cursor-pointer text-sm sm:text-base"
                 >
                   <option value="">All Status</option>
                   <option value="active">Active</option>
@@ -326,160 +330,171 @@ const AdminPage: React.FC = () => {
               <div className="flex justify-center items-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
               </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="text-red-400 text-center">
+                  <p className="text-lg font-semibold mb-2">
+                    Error Loading Users
+                  </p>
+                  <p className="text-sm">{error}</p>
+                  <button
+                    onClick={loadUsers}
+                    className="mt-4 px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="min-w-full">
-                {/* Table Header */}
-                <div className="grid grid-cols-6 gap-3 p-6 border-b border-white/10 text-sm font-medium text-gray-300">
-                  <div className="flex items-center">
-                    <Users className="w-4 h-4 mr-2" />
-                    User
-                  </div>
-                  <div>Role</div>
-                  <div>Status</div>
-                  <div>Company/Position</div>
-                  <div>Joined</div>
-                  <div>Actions</div>
-                </div>
-
-                {/* Table Body */}
-                <div className="divide-y divide-white/10">
-                  {users.map((user, index) => (
-                    <motion.div
-                      key={user.id}
-                      className="grid grid-cols-6 gap-3 p-6 hover:bg-white/5 transition-all duration-300 group"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: index * 0.05 }}
-                    >
-                      <div className="flex items-center">
-                        <div>
-                          <div className="text-white font-medium">
-                            {user.name}
-                          </div>
-                          <div className="text-gray-400 text-sm">
-                            {user.email}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center">
-                        <span
-                          className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getRoleBadgeColor(
-                            user.role
-                          )}`}
-                        >
-                          {user.role}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center">
-                        <span
-                          className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getStatusBadgeColor(
-                            user.status
-                          )}`}
-                        >
-                          {user.status}
-                        </span>
-                      </div>
-
-                      <div className="text-white">
-                        {user.company && (
-                          <div className="font-medium">{user.company}</div>
-                        )}
-                        {user.position && (
-                          <div className="text-gray-400 text-sm">
-                            {user.position}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="text-gray-400 text-sm">
-                        {new Date(user.createdAt).toLocaleDateString()}
-                      </div>
-
-                      <div className="flex items-center space-x-3">
-                        <div className="relative">
-                          <motion.button
-                            onClick={(e) => toggleDropdown(user.id, e)}
-                            data-dropdown-button
-                            className="px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:border-pink-500/50 transition-all duration-300 flex items-center space-x-2 min-w-[120px]"
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                          >
-                            <span className="capitalize">{user.role}</span>
-                            <ChevronDown
-                              className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
-                                openDropdown === user.id ? "rotate-180" : ""
-                              }`}
-                            />
-                          </motion.button>
-
-                          {openDropdown === user.id && (
-                            <motion.div
-                              data-dropdown-content
-                              className={`absolute left-0 w-full bg-gray-800 border border-gray-600 rounded-xl overflow-hidden z-10 shadow-lg ${
-                                dropdownPosition[user.id] === "up"
-                                  ? "bottom-full mb-1"
-                                  : "top-full mt-1"
-                              }`}
-                              initial={{
-                                opacity: 0,
-                                y:
-                                  dropdownPosition[user.id] === "up" ? 10 : -10,
-                              }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{
-                                opacity: 0,
-                                y:
-                                  dropdownPosition[user.id] === "up" ? 10 : -10,
-                              }}
-                              transition={{ duration: 0.2 }}
-                            >
-                              {(
-                                ["pending", "alumni", "student"] as UserRole[]
-                              ).map((role) => (
-                                <motion.button
-                                  key={role}
-                                  onClick={() => selectRole(user.id, role)}
-                                  className={`w-full px-3 py-2 text-left text-sm transition-all duration-200 hover:bg-white/10 ${
-                                    user.role === role
-                                      ? "text-pink-400 bg-pink-500/10"
-                                      : "text-white"
-                                  }`}
-                                  whileHover={{
-                                    backgroundColor: "rgba(255, 255, 255, 0.1)",
-                                  }}
+                <table className="w-full">
+                  <thead className="bg-white/5 border-b border-white/10">
+                    <tr>
+                      <th className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        User
+                      </th>
+                      <th className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider hidden sm:table-cell">
+                        Role
+                      </th>
+                      <th className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider hidden md:table-cell">
+                        Status
+                      </th>
+                      <th className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider hidden lg:table-cell">
+                        Company/Position
+                      </th>
+                      <th className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider hidden md:table-cell">
+                        Joined
+                      </th>
+                      <th className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {users.map((user, index) => (
+                      <motion.tr
+                        key={user.id}
+                        className="hover:bg-white/5 transition-colors"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                      >
+                        <td className="px-2 sm:px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 mr-2 sm:mr-3">
+                              <User className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs sm:text-sm font-medium text-white truncate">
+                                {user.name}
+                              </div>
+                              <div className="text-xs sm:text-sm text-gray-300 truncate">
+                                {user.email}
+                              </div>
+                              {/* Show role and status on mobile */}
+                              <div className="sm:hidden flex gap-2 mt-1">
+                                <span
+                                  className={`inline-flex px-1 py-0.5 text-xs font-semibold rounded-full border ${getRoleBadgeColor(
+                                    user.role
+                                  )}`}
                                 >
-                                  <span className="capitalize">{role}</span>
-                                </motion.button>
-                              ))}
-                            </motion.div>
-                          )}
-                        </div>
+                                  {user.role}
+                                </span>
+                                <span
+                                  className={`inline-flex px-1 py-0.5 text-xs font-semibold rounded-full border ${getStatusBadgeColor(
+                                    user.status
+                                  )}`}
+                                >
+                                  {user.status}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
 
-                        <motion.button
-                          onClick={() => handleApproveUser(user.id)}
-                          className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-all duration-300"
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          title="Assign Role"
-                        >
-                          <Check className="w-4 h-4" />
-                        </motion.button>
+                        <td className="px-2 sm:px-4 py-3 whitespace-nowrap hidden sm:table-cell">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getRoleBadgeColor(
+                              user.role
+                            )}`}
+                          >
+                            {user.role}
+                          </span>
+                        </td>
 
-                        <motion.button
-                          onClick={() => handleDeleteUser(user.id, user.name)}
-                          className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all duration-300"
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          title="Delete User"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </motion.button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
+                        <td className="px-2 sm:px-4 py-3 whitespace-nowrap hidden md:table-cell">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStatusBadgeColor(
+                              user.status
+                            )}`}
+                          >
+                            {user.status}
+                          </span>
+                        </td>
+
+                        <td className="px-2 sm:px-4 py-3 whitespace-nowrap hidden lg:table-cell">
+                          <div className="text-sm text-white">
+                            {user.company && (
+                              <div className="font-medium">{user.company}</div>
+                            )}
+                            {user.position && (
+                              <div className="text-gray-400 text-xs">
+                                {user.position}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="px-2 sm:px-4 py-3 whitespace-nowrap hidden md:table-cell">
+                          <div className="text-sm text-gray-300">
+                            {new Date(user.createdAt).toLocaleDateString()}
+                          </div>
+                        </td>
+
+                        <td className="px-2 sm:px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center space-x-1 sm:space-x-2">
+                            <div className="relative">
+                              <motion.button
+                                ref={(el) => {
+                                  buttonRefs.current[user.id] = el;
+                                }}
+                                onClick={(e) => toggleDropdown(user.id, e)}
+                                data-dropdown-button
+                                className="px-1 sm:px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:border-pink-500/50 transition-all duration-300 flex items-center space-x-1 min-w-[60px] sm:min-w-[80px]"
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                              >
+                                <span className="capitalize text-xs hidden sm:inline">
+                                  {user.role}
+                                </span>
+                                <span className="capitalize text-xs sm:hidden">
+                                  {user.role.charAt(0)}
+                                </span>
+                                <ChevronDown
+                                  className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${
+                                    openDropdown === user.id ? "rotate-180" : ""
+                                  }`}
+                                />
+                              </motion.button>
+                            </div>
+
+                            <motion.button
+                              onClick={() =>
+                                handleDeleteUser(user.id, user.name)
+                              }
+                              className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-all duration-300"
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              title="Delete User"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </motion.button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -487,28 +502,29 @@ const AdminPage: React.FC = () => {
           {/* Pagination */}
           {totalPages > 1 && (
             <motion.div
-              className="p-6 border-t border-white/10 bg-white/5"
+              className="p-3 sm:p-4 border-t border-white/10 bg-white/5"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.5 }}
             >
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-300">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-xs sm:text-sm text-gray-300 text-center sm:text-left">
                   Showing {(currentPage - 1) * 10 + 1} to{" "}
                   {Math.min(currentPage * 10, totalItems)} of {totalItems}{" "}
                   results
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex flex-wrap justify-center gap-1 sm:gap-2">
                   <motion.button
                     onClick={() =>
                       setCurrentPage((prev) => Math.max(1, prev - 1))
                     }
                     disabled={currentPage === 1}
-                    className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                    className="px-3 sm:px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 text-xs sm:text-sm"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    Previous
+                    <span className="hidden sm:inline">Previous</span>
+                    <span className="sm:hidden">Prev</span>
                   </motion.button>
 
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(
@@ -516,7 +532,7 @@ const AdminPage: React.FC = () => {
                       <motion.button
                         key={page}
                         onClick={() => setCurrentPage(page)}
-                        className={`px-4 py-2 rounded-lg transition-all duration-300 ${
+                        className={`px-2 sm:px-4 py-2 rounded-lg transition-all duration-300 text-xs sm:text-sm ${
                           currentPage === page
                             ? "bg-gradient-to-r from-pink-500 to-red-500 text-white shadow-lg"
                             : "bg-white/5 border border-white/10 text-white hover:bg-white/10"
@@ -534,7 +550,7 @@ const AdminPage: React.FC = () => {
                       setCurrentPage((prev) => Math.min(totalPages, prev + 1))
                     }
                     disabled={currentPage === totalPages}
-                    className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                    className="px-3 sm:px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 text-xs sm:text-sm"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
@@ -545,6 +561,67 @@ const AdminPage: React.FC = () => {
             </motion.div>
           )}
         </motion.div>
+
+        {/* Role Dropdown Portal */}
+        <AnimatePresence>
+          {openDropdown && (
+            <motion.div
+              className="fixed bg-gray-900/95 backdrop-blur-sm border border-white/20 rounded-lg shadow-xl z-50 min-w-36 flex flex-col overflow-hidden"
+              style={{
+                top: dropdownPosition?.top || 100,
+                left: dropdownPosition?.left || 100,
+              }}
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              data-dropdown-content
+            >
+              {(["pending", "alumni", "student"] as UserRole[]).map(
+                (role, index) => (
+                  <motion.button
+                    key={role}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log(
+                        "Role clicked:",
+                        role,
+                        "for user:",
+                        openDropdown
+                      );
+                      const user = users.find((u) => u.id === openDropdown);
+                      if (user) {
+                        selectRole(user.id, role);
+                      }
+                    }}
+                    className={`w-full text-left px-3 py-2.5 text-sm hover:bg-white/10 transition-colors whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+                      users.find((u) => u.id === openDropdown)?.role === role
+                        ? "bg-white/5 text-white"
+                        : "text-gray-300"
+                    } ${index === 0 ? "rounded-t-lg" : ""} ${
+                      index === 2 ? "rounded-b-lg" : ""
+                    }`}
+                    whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                  >
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        role === "pending"
+                          ? "bg-yellow-400"
+                          : role === "alumni"
+                          ? "bg-green-400"
+                          : "bg-blue-400"
+                      }`}
+                    />
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                  </motion.button>
+                )
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Delete Confirmation Dialog */}
         {deleteDialog.isOpen && (

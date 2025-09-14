@@ -5,15 +5,14 @@ import { jobService } from "../services/jobService";
 import type { JobPosting, JobType } from "../types/job";
 import {
   Briefcase,
-  MapPin,
   Clock,
   User,
   Calendar,
-  Filter,
-  Search,
   Plus,
   Trash2,
   Send,
+  Users,
+  CheckCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { JobCardSkeleton } from "../components/SkeletonLoader";
@@ -21,11 +20,18 @@ import ApplyDialog from "../components/ApplyDialog";
 
 const JobBoard: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
-  const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<JobPosting[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState<JobType | "all">("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalJobs: 0,
+    jobsPerPage: 10,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
   const [applyDialog, setApplyDialog] = useState<{
     isOpen: boolean;
     job: JobPosting | null;
@@ -36,40 +42,42 @@ const JobBoard: React.FC = () => {
   }>({ isOpen: false, job: null });
 
   useEffect(() => {
-    // Initialize sample data if needed
-    jobService.initializeSampleData();
-
-    // Load jobs
-    const allJobs = jobService.getAllJobs();
-    setJobs(allJobs);
-    setFilteredJobs(allJobs);
-    setIsLoading(false);
+    loadJobs();
   }, []);
 
+  const loadJobs = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await jobService.getAllJobs({
+        page: pagination.currentPage,
+        limit: pagination.jobsPerPage,
+        type: selectedType !== "all" ? selectedType : undefined,
+      });
+
+      setFilteredJobs(response.jobs);
+      setPagination(response.pagination);
+    } catch (error) {
+      console.error("Error loading jobs:", error);
+      setError(error instanceof Error ? error.message : "Failed to load jobs");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // Filter jobs based on search term and type
-    let filtered = jobs;
+    // Reload jobs when filters change
+    loadJobs();
+  }, [selectedType]);
 
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (job) =>
-          job.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          job.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          job.postedBy.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (selectedType !== "all") {
-      filtered = filtered.filter((job) => job.type === selectedType);
-    }
-
-    setFilteredJobs(filtered);
-  }, [jobs, searchTerm, selectedType]);
-
-  const handleDeleteJob = (jobId: string) => {
-    if (user && jobService.deleteJob(jobId, user.name)) {
-      const updatedJobs = jobService.getAllJobs();
-      setJobs(updatedJobs);
+  const handleDeleteJob = async (jobId: string) => {
+    try {
+      await jobService.deleteJob(jobId);
+      // Reload jobs after successful deletion
+      await loadJobs();
+    } catch (error) {
+      console.error("Error deleting job:", error);
+      setError(error instanceof Error ? error.message : "Failed to delete job");
     }
   };
 
@@ -77,11 +85,17 @@ const JobBoard: React.FC = () => {
     setDeleteDialog({ isOpen: true, job });
   };
 
-  const confirmDelete = () => {
-    if (deleteDialog.job && user?.role === "admin") {
-      if (jobService.deleteJobAsAdmin(deleteDialog.job.id)) {
-        const updatedJobs = jobService.getAllJobs();
-        setJobs(updatedJobs);
+  const confirmDelete = async () => {
+    if (deleteDialog.job) {
+      try {
+        await jobService.deleteJob(deleteDialog.job.id);
+        // Reload jobs after successful deletion
+        await loadJobs();
+      } catch (error) {
+        console.error("Error deleting job:", error);
+        setError(
+          error instanceof Error ? error.message : "Failed to delete job"
+        );
       }
     }
     setDeleteDialog({ isOpen: false, job: null });
@@ -99,24 +113,31 @@ const JobBoard: React.FC = () => {
     setApplyDialog({ isOpen: false, job: null });
   };
 
-  const handleApplySubmit = async (resumeFile: File): Promise<boolean> => {
+  const handleApplySubmit = async (coverLetter: string): Promise<boolean> => {
     try {
-      // Here you would typically send the application to your backend
-      console.log("Application submitted:", {
-        job: applyDialog.job,
-        resume: resumeFile,
-        applicant: user?.name,
+      if (!applyDialog.job) {
+        throw new Error("No job selected for application");
+      }
+
+      if (!applyDialog.job.id) {
+        throw new Error("Job ID is missing");
+      }
+
+      const success = await jobService.applyToJob(applyDialog.job.id, {
+        coverLetter: coverLetter,
       });
 
-      // Simulate API call with random success/failure for demo
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // For demo purposes, randomly succeed or fail
-      const success = Math.random() > 0.2; // 80% success rate
+      if (success) {
+        // Reload jobs to update the application status
+        await loadJobs();
+      }
 
       return success;
     } catch (error) {
       console.error("Error submitting application:", error);
+      setError(
+        error instanceof Error ? error.message : "Failed to submit application"
+      );
       return false;
     }
   };
@@ -134,6 +155,21 @@ const JobBoard: React.FC = () => {
     }
   };
 
+  const getApplicationStatusColor = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "reviewed":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "accepted":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "rejected":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      default:
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -141,6 +177,14 @@ const JobBoard: React.FC = () => {
       month: "short",
       day: "numeric",
     });
+  };
+
+  const getPostedByName = (
+    postedBy:
+      | string
+      | { _id: string; name: string; email: string; avatar: string }
+  ) => {
+    return typeof postedBy === "string" ? postedBy : postedBy.name;
   };
 
   if (!isAuthenticated) {
@@ -185,12 +229,12 @@ const JobBoard: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2 glow-text">
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 glow-text">
                 Referral Board
               </h1>
-              <p className="text-gray-300">
+              <p className="text-gray-300 text-sm sm:text-base">
                 Discover opportunities posted by our alumni network
               </p>
             </div>
@@ -201,37 +245,26 @@ const JobBoard: React.FC = () => {
               >
                 <Link
                   to="/post-referral"
-                  className="btn btn-primary mt-4 md:mt-0"
+                  className="btn btn-primary w-full sm:w-auto"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Post a Referral
+                  <span className="hidden sm:inline">Post a Referral</span>
+                  <span className="sm:hidden">Post Referral</span>
                 </Link>
               </motion.div>
             )}
           </div>
 
-          {/* Search and Filter */}
-          <div className="glass-card p-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Search referrals, companies, or alumni..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent text-white placeholder-gray-400"
-                  />
-                </div>
-              </div>
-              <div className="md:w-48">
+          {/* Filter */}
+          <div className="glass-card p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="w-full sm:w-48">
                 <select
                   value={selectedType}
                   onChange={(e) =>
                     setSelectedType(e.target.value as JobType | "all")
                   }
-                  className="w-full px-3 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent text-white"
+                  className="w-full px-3 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent text-white text-sm sm:text-base"
                 >
                   <option value="all" className="bg-gray-800">
                     All Types
@@ -250,6 +283,30 @@ const JobBoard: React.FC = () => {
             </div>
           </div>
         </motion.div>
+
+        {/* Error Display */}
+        {error && (
+          <motion.div
+            className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="flex items-center">
+              <div className="text-red-400 mr-3">⚠️</div>
+              <div>
+                <h3 className="text-red-400 font-medium">Error</h3>
+                <p className="text-red-300 text-sm">{error}</p>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="ml-auto text-red-400 hover:text-red-300"
+              >
+                ✕
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         {/* Jobs List */}
         {isLoading ? (
@@ -276,8 +333,8 @@ const JobBoard: React.FC = () => {
               No referrals found
             </h3>
             <p className="text-gray-300 mb-6">
-              {searchTerm || selectedType !== "all"
-                ? "Try adjusting your search criteria"
+              {selectedType !== "all"
+                ? "Try adjusting your filter criteria"
                 : "Be the first to post a referral opportunity"}
             </p>
             {user?.role === "alumni" && (
@@ -293,7 +350,7 @@ const JobBoard: React.FC = () => {
           </motion.div>
         ) : (
           <motion.div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6 }}
@@ -302,7 +359,7 @@ const JobBoard: React.FC = () => {
               {filteredJobs.map((job, index) => (
                 <motion.div
                   key={job.id}
-                  className="card-3d p-6 group relative h-fit"
+                  className="card-3d p-4 sm:p-6 group relative h-fit"
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -30 }}
@@ -310,7 +367,8 @@ const JobBoard: React.FC = () => {
                   whileHover={{ scale: 1.02 }}
                 >
                   {/* Delete button for alumni who posted the job or admin */}
-                  {((user?.role === "alumni" && user.name === job.postedBy) ||
+                  {((user?.role === "alumni" &&
+                    user.name === getPostedByName(job.postedBy)) ||
                     user?.role === "admin") && (
                     <motion.button
                       onClick={() =>
@@ -344,19 +402,18 @@ const JobBoard: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Main Content - Two Column Layout */}
-                  <div className="grid grid-cols-2 gap-4 mb-3">
-                    {/* Left Column */}
-                    <div className="space-y-2">
-                      <div>
-                        <h3 className="text-base font-semibold text-white mb-1 line-clamp-2">
-                          {job.role}
-                        </h3>
-                        <p className="text-sm text-gray-300 font-medium">
-                          {job.company}
-                        </p>
-                      </div>
+                  {/* Main Content - Responsive Layout */}
+                  <div className="space-y-3 mb-3">
+                    <div>
+                      <h3 className="text-sm sm:text-base font-semibold text-white mb-1 line-clamp-2">
+                        {job.role}
+                      </h3>
+                      <p className="text-xs sm:text-sm text-gray-300 font-medium">
+                        {job.company}
+                      </p>
+                    </div>
 
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
                       <div className="space-y-1">
                         <div className="flex items-center text-xs">
                           <span className="text-gray-300 font-medium">
@@ -370,10 +427,7 @@ const JobBoard: React.FC = () => {
                           <span className="text-gray-300">{job.duration}</span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Right Column */}
-                    <div className="space-y-2">
                       <div className="space-y-1">
                         <div className="flex items-center text-xs">
                           <Briefcase className="w-3 h-3 mr-1 text-pink-400 flex-shrink-0" />
@@ -397,7 +451,9 @@ const JobBoard: React.FC = () => {
                     <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
                       <div className="flex items-center">
                         <User className="w-3 h-3 mr-1" />
-                        <span className="truncate">{job.postedBy}</span>
+                        <span className="truncate">
+                          {getPostedByName(job.postedBy)}
+                        </span>
                       </div>
                       <div className="flex items-center">
                         <Calendar className="w-3 h-3 mr-1" />
@@ -405,16 +461,56 @@ const JobBoard: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Apply Button */}
-                    <motion.button
-                      onClick={() => handleApplyClick(job)}
-                      className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <Send className="w-4 h-4 mr-2" />
-                      Apply Now
-                    </motion.button>
+                    {/* Action Buttons */}
+                    <div className="space-y-2">
+                      {/* Apply Button or Applied Status */}
+                      {job.hasApplied ? (
+                        <div className="w-full flex items-center justify-center px-4 py-2 bg-green-600/20 border border-green-500/30 text-green-400 text-sm font-medium rounded-lg">
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Applied
+                          {job.applicationStatus && (
+                            <span
+                              className={`ml-2 px-2 py-1 rounded-full text-xs ${getApplicationStatusColor(
+                                job.applicationStatus
+                              )}`}
+                            >
+                              {job.applicationStatus.charAt(0).toUpperCase() +
+                                job.applicationStatus.slice(1)}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <motion.button
+                          onClick={() => handleApplyClick(job)}
+                          className="w-full flex items-center justify-center px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium rounded-lg transition-colors"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <Send className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                          Apply Now
+                        </motion.button>
+                      )}
+
+                      {/* View Applicants Button - Only for job poster or admin */}
+                      {((user?.role === "alumni" &&
+                        user.name === getPostedByName(job.postedBy)) ||
+                        user?.role === "admin") && (
+                        <motion.button
+                          onClick={() =>
+                            (window.location.href = `/job/${job.id}/applicants`)
+                          }
+                          className="w-full flex items-center justify-center px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm font-medium rounded-lg transition-colors"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <Users className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                          <span className="hidden sm:inline">
+                            View Applicants
+                          </span>
+                          <span className="sm:hidden">View</span>
+                        </motion.button>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -422,7 +518,7 @@ const JobBoard: React.FC = () => {
           </motion.div>
         )}
 
-        {/* Results count */}
+        {/* Results count and pagination */}
         {filteredJobs.length > 0 && (
           <motion.div
             className="mt-8 text-center text-gray-400"
@@ -430,22 +526,61 @@ const JobBoard: React.FC = () => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.3 }}
           >
-            Showing {filteredJobs.length} of {jobs.length} referral
-            {jobs.length !== 1 ? "s" : ""}
+            <div className="mb-4 text-sm sm:text-base">
+              Showing {filteredJobs.length} of {pagination.totalJobs} referral
+              {pagination.totalJobs !== 1 ? "s" : ""}
+            </div>
+
+            {/* Pagination */}
+            {pagination.totalPages > 1 && (
+              <div className="flex justify-center items-center space-x-1 sm:space-x-2">
+                <button
+                  onClick={() => {
+                    setPagination((prev) => ({
+                      ...prev,
+                      currentPage: prev.currentPage - 1,
+                    }));
+                    loadJobs();
+                  }}
+                  disabled={!pagination.hasPrevPage}
+                  className="px-2 sm:px-3 py-1 bg-white/10 border border-white/20 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/20 transition-colors text-xs sm:text-sm"
+                >
+                  <span className="hidden sm:inline">Previous</span>
+                  <span className="sm:hidden">Prev</span>
+                </button>
+
+                <span className="px-2 sm:px-4 py-1 text-xs sm:text-sm">
+                  Page {pagination.currentPage} of {pagination.totalPages}
+                </span>
+
+                <button
+                  onClick={() => {
+                    setPagination((prev) => ({
+                      ...prev,
+                      currentPage: prev.currentPage + 1,
+                    }));
+                    loadJobs();
+                  }}
+                  disabled={!pagination.hasNextPage}
+                  className="px-2 sm:px-3 py-1 bg-white/10 border border-white/20 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/20 transition-colors text-xs sm:text-sm"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </div>
 
       {/* Apply Dialog */}
-      {applyDialog.job && (
-        <ApplyDialog
-          isOpen={applyDialog.isOpen}
-          onClose={handleApplyClose}
-          jobTitle={applyDialog.job.role}
-          companyName={applyDialog.job.company}
-          onApply={handleApplySubmit}
-        />
-      )}
+      <ApplyDialog
+        key={applyDialog.job?.id || "apply-dialog"}
+        isOpen={applyDialog.isOpen && !!applyDialog.job}
+        onClose={handleApplyClose}
+        jobTitle={applyDialog.job?.role || ""}
+        companyName={applyDialog.job?.company || ""}
+        onApply={handleApplySubmit}
+      />
 
       {/* Delete Confirmation Dialog */}
       {deleteDialog.job && (
@@ -479,7 +614,7 @@ const JobBoard: React.FC = () => {
                   {deleteDialog.job.company}
                 </div>
                 <div className="text-gray-400 text-xs mt-1">
-                  Posted by {deleteDialog.job.postedBy}
+                  Posted by {getPostedByName(deleteDialog.job.postedBy)}
                 </div>
               </div>
               <p className="text-red-400 text-sm mb-6">
