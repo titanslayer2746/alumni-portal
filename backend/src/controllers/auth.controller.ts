@@ -99,7 +99,9 @@ export const linkedInCallback = async (req: Request, res: Response) => {
     );
 
     res.cookie("token", token, {
-      httpOnly: true,
+      httpOnly: false, // Allow JavaScript to access the cookie
+      secure: false, // Set to true in production with HTTPS
+      sameSite: "lax",
     });
 
     res.redirect("http://localhost:5173/referrals");
@@ -171,6 +173,109 @@ export const logout = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: "Logout failed",
+    });
+  }
+};
+
+// Update user profile
+export const updateUserProfile = async (req: Request, res: Response) => {
+  try {
+    const token = req.cookies.token;
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+
+    // Find user by email since JWT contains email, not ID
+    const user = await User.findOne({ email: decoded.email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+    const userId = user._id;
+
+    const { name, graduationYear, company, position, resume } = req.body;
+
+    // Build update object with only provided fields
+    const updateData: any = {};
+
+    if (name !== undefined) {
+      updateData.name = name.trim();
+    }
+    if (graduationYear !== undefined) {
+      updateData.graduationYear = graduationYear;
+    }
+    if (company !== undefined) {
+      updateData.company = company.trim();
+    }
+    if (position !== undefined) {
+      updateData.position = position.trim();
+    }
+    if (resume !== undefined) {
+      updateData.resume = resume.trim();
+    }
+
+    // Validate required fields if provided
+    if (updateData.name && updateData.name.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Name cannot be empty",
+      });
+    }
+
+    if (
+      updateData.graduationYear &&
+      (updateData.graduationYear < 1900 ||
+        updateData.graduationYear > new Date().getFullYear() + 10)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid graduation year",
+      });
+    }
+
+    // Update user in database
+    const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        avatar: updatedUser.avatar,
+        role: updatedUser.role,
+        graduationYear: updatedUser.graduationYear,
+        company: updatedUser.company,
+        position: updatedUser.position,
+        resume: updatedUser.resume,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating user profile:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while updating profile",
     });
   }
 };
