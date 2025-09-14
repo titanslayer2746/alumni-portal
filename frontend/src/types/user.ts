@@ -9,6 +9,7 @@ export interface User {
   role: UserRole; // pending (default), admin, alumni, student
   company?: string; // optional
   position?: string; // optional
+  resume?: string; // optional - drive link to resume
   createdAt: string; // required
   updatedAt?: string; // optional
 }

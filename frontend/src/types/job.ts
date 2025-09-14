@@ -13,11 +13,21 @@ export interface JobPosting {
     amount: string;
     currency: Currency;
   };
-  postedBy: string; // alumni name
+  postedBy:
+    | string
+    | { _id: string; name: string; email: string; avatar: string }; // alumni name or populated user object
   postedAt: string;
   description?: string;
   requirements?: string[];
   benefits?: string[];
+  hasApplied?: boolean;
+  applicationStatus?:
+    | "pending"
+    | "reviewed"
+    | "accepted"
+    | "rejected"
+    | "shortlisted"
+    | "hired";
 }
 
 export interface JobFormData {
