@@ -101,7 +101,7 @@ export const linkedInCallback = async (req: Request, res: Response) => {
 
     res.cookie("token", token, {
       httpOnly: false, // Allow JavaScript to access the cookie
-      secure: false, // Set to true in production with HTTPS
+      secure: true, // Set to true in production with HTTPS
       sameSite: "lax",
     });
 
