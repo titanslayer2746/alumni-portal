@@ -154,6 +154,40 @@ class AuthService {
   }
 
   /**
+   * Update current user's profile
+   */
+  async updateCurrentUserProfile(profileData: {
+    name?: string;
+    graduationYear?: number;
+    company?: string;
+    position?: string;
+    resume?: string;
+  }): Promise<{ success: boolean; message?: string; user?: User }> {
+    try {
+      const response = await fetch(
+        `${this.baseURL}/api/linkedin/update-profile`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify(profileData),
+        }
+      );
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      return {
+        success: false,
+        message: "Network error occurred",
+      };
+    }
+  }
+
+  /**
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {

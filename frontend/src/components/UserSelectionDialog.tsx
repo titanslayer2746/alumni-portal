@@ -22,7 +22,7 @@ const UserSelectionDialog: React.FC<UserSelectionDialogProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { user } = useAuth();
+  const {} = useAuth();
   const { createConversation } = useChat();
   const [users, setUsers] = useState<UserForConversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);

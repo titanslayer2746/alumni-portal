@@ -11,7 +11,6 @@ import {
   Heart,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { CardSkeleton } from "../components/SkeletonLoader";
 
 const HomePage: React.FC = () => {
   const { isAuthenticated } = useAuth();

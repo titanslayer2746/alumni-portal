@@ -5,9 +5,6 @@ import { jobService } from "../services/jobService";
 import {
   Users,
   ArrowLeft,
-  Mail,
-  Calendar,
-  GraduationCap,
   FileText,
   Copy,
   ExternalLink,
@@ -512,27 +509,16 @@ const JobApplicants: React.FC = () => {
                         {canEditStatus() ? (
                           <div className="relative status-dropdown">
                             <motion.button
-                              ref={(el) =>
-                                (buttonRefs.current[applicant.id] = el)
-                              }
+                              ref={(el) => {
+                                if (el) buttonRefs.current[applicant.id] = el;
+                              }}
                               onClick={() => {
-                                console.log(
-                                  "Button clicked for applicant:",
-                                  applicant.id
-                                );
-                                console.log(
-                                  "Current openDropdown:",
-                                  openDropdown
-                                );
-
                                 if (openDropdown === applicant.id) {
                                   // Close dropdown if it's already open
-                                  console.log("Closing dropdown");
                                   setOpenDropdown(null);
                                   setDropdownPosition(null);
                                 } else {
                                   // Open dropdown and calculate position
-                                  console.log("Opening dropdown");
                                   const button =
                                     buttonRefs.current[applicant.id];
                                   if (button) {

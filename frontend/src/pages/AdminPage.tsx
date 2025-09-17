@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import type { AdminUser, UserRole, UserFilters } from "../types/user";
 import { getUserService } from "../services/userService";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, Trash2, Check, ChevronDown, User } from "lucide-react";
+import { Search, Filter, Trash2, ChevronDown, User } from "lucide-react";
 
 const AdminPage: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -69,7 +69,6 @@ const AdminPage: React.FC = () => {
       const isDropdownContent = target.closest("[data-dropdown-content]");
 
       if (openDropdown && !isDropdownButton && !isDropdownContent) {
-        console.log("Closing dropdown due to outside click");
         setOpenDropdown(null);
         setDropdownPosition(null);
       }
@@ -100,23 +99,9 @@ const AdminPage: React.FC = () => {
     setDeleteDialog({ isOpen: false, userId: "", userName: "" });
   };
 
-  const handleApproveUser = async (userId: string) => {
-    const success = await userService.updateUserRole(userId, "alumni");
-    if (success) {
-      loadUsers();
-    }
-  };
-
   const toggleDropdown = (userId: string, event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-
-    console.log(
-      "Toggle dropdown for user:",
-      userId,
-      "currently open:",
-      openDropdown
-    );
 
     if (openDropdown === userId) {
       setOpenDropdown(null);
@@ -138,10 +123,8 @@ const AdminPage: React.FC = () => {
 
   const selectRole = async (userId: string, role: UserRole) => {
     try {
-      console.log("Updating role for user:", userId, "to role:", role);
       const success = await userService.updateUserRole(userId, role);
       if (success) {
-        console.log("Role updated successfully");
         loadUsers();
       } else {
         console.error("Failed to update role");
@@ -584,12 +567,6 @@ const AdminPage: React.FC = () => {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      console.log(
-                        "Role clicked:",
-                        role,
-                        "for user:",
-                        openDropdown
-                      );
                       const user = users.find((u) => u.id === openDropdown);
                       if (user) {
                         selectRole(user.id, role);

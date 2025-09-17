@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { getUserService } from "../services/userService";
+import { authService } from "../services/authService";
 import { motion } from "framer-motion";
 import {
   User as UserIcon,
@@ -31,7 +31,6 @@ const ProfilePage: React.FC = () => {
     resume: "",
   });
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
-  const userService = getUserService();
 
   const handleResumeEdit = () => {
     setIsEditingResume(true);
@@ -43,7 +42,7 @@ const ProfilePage: React.FC = () => {
 
     setIsSaving(true);
     try {
-      const result = await userService.updateUserProfileFromAPI({
+      const result = await authService.updateCurrentUserProfile({
         resume: resumeValue,
       });
 
@@ -129,7 +128,7 @@ const ProfilePage: React.FC = () => {
         return;
       }
 
-      const result = await userService.updateUserProfileFromAPI(updateData);
+      const result = await authService.updateCurrentUserProfile(updateData);
 
       if (result.success && result.user) {
         // Update local user state
