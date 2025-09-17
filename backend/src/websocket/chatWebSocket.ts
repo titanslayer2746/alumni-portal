@@ -50,7 +50,7 @@ export class ChatWebSocket {
   constructor(server: HTTPServer) {
     this.io = new SocketIOServer(server, {
       cors: {
-        origin: process.env.FRONTEND_URL || "http://localhost:5173",
+        origin: process.env.FRONTEND_URL,
         methods: ["GET", "POST"],
         credentials: true,
       },
@@ -97,7 +97,7 @@ export class ChatWebSocket {
     this.io.on("connection", (socket) => {
       const user = (socket as any).user as AuthenticatedSocket;
 
-      console.log(`User ${user.userName} (${user.userId}) connected to chat`);
+      // User connected to chat
 
       // Store user connection
       this.connectedUsers.set(socket.id, user);
@@ -123,9 +123,7 @@ export class ChatWebSocket {
 
           // Join conversation room
           socket.join(`conversation:${conversationId}`);
-          console.log(
-            `User ${user.userName} joined conversation ${conversationId}`
-          );
+          // User joined conversation
         } catch (error) {
           console.error("Error joining conversation:", error);
           socket.emit("error", "Failed to join conversation");
@@ -135,9 +133,7 @@ export class ChatWebSocket {
       // Handle leaving a conversation
       socket.on("leaveConversation", (conversationId) => {
         socket.leave(`conversation:${conversationId}`);
-        console.log(
-          `User ${user.userName} left conversation ${conversationId}`
-        );
+        // User left conversation
       });
 
       // Handle sending messages
@@ -241,9 +237,7 @@ export class ChatWebSocket {
 
       // Handle disconnection
       socket.on("disconnect", () => {
-        console.log(
-          `User ${user.userName} (${user.userId}) disconnected from chat`
-        );
+        // User disconnected from chat
         this.connectedUsers.delete(socket.id);
         this.userSockets.delete(user.userId);
       });

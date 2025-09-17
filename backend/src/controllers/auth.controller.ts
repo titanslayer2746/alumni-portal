@@ -2,13 +2,15 @@ import type { Request, Response } from "express";
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 
+const frontend_url = process.env.FRONTEND_URL;
+const backend_url = process.env.API_URL;
 const getAccessToken = async (code: string) => {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code: code,
     client_id: process.env.LINKEDIN_CLIENT_ID!,
     client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
-    redirect_uri: "http://localhost:3001/api/linkedin/callback",
+    redirect_uri: `${backend_url}/api/linkedin/callback`,
   });
   const response = await fetch(
     "https://www.linkedin.com/oauth/v2/accessToken",
@@ -56,7 +58,6 @@ const getUserData = async (accessToken: string) => {
 export const linkedInCallback = async (req: Request, res: Response) => {
   try {
     const { code } = req.query;
-    console.log(code);
 
     if (!code || typeof code !== "string") {
       return res.status(400).json({ error: "Authorization code is required" });
@@ -104,7 +105,7 @@ export const linkedInCallback = async (req: Request, res: Response) => {
       sameSite: "lax",
     });
 
-    res.redirect("http://localhost:5173/referrals");
+    res.redirect(`${frontend_url}/referrals`);
   } catch (error) {
     res.status(500).json({ success: false, error });
   }

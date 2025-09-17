@@ -5,23 +5,8 @@ import type {
   PaginationInfo,
 } from "../types/user";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 const ITEMS_PER_PAGE = 10;
-
-// Helper function to get auth token (same logic as authService)
-const getAuthToken = (): string | null => {
-  // Try to get token from cookies first, then localStorage
-  const cookies = document.cookie.split(";");
-  const tokenCookie = cookies.find((cookie) =>
-    cookie.trim().startsWith("token=")
-  );
-
-  if (tokenCookie) {
-    return tokenCookie.split("=")[1];
-  }
-
-  return localStorage.getItem("alumniPortalToken");
-};
 
 // Helper function to make API requests
 const apiRequest = async (

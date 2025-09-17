@@ -43,27 +43,14 @@ export const authenticate = async (
     // Try to get token from cookies first, then from Authorization header
     let token = req.cookies.token;
 
-    console.log("Auth Middleware Debug:");
-    console.log("- Cookies:", req.cookies);
-    console.log("- Auth Header:", req.headers.authorization);
-    console.log(
-      "- Token from cookie:",
-      token ? `${token.substring(0, 20)}...` : "null"
-    );
-
     if (!token) {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith("Bearer ")) {
         token = authHeader.substring(7); // Remove "Bearer " prefix
-        console.log(
-          "- Token from header:",
-          token ? `${token.substring(0, 20)}...` : "null"
-        );
       }
     }
 
     if (!token) {
-      console.log("- No token found, returning 401");
       res.status(401).json({
         success: false,
         error: "Access denied. No token provided.",
@@ -100,7 +87,8 @@ export const authenticate = async (
 
     next();
   } catch (error) {
-    console.error("Authentication error:", error);
+    // Log error without exposing sensitive details
+    console.error("Authentication failed");
     res.status(403).json({
       success: false,
       error: "Invalid token",

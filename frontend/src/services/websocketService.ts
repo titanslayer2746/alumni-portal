@@ -34,15 +34,12 @@ class WebSocketService {
   connect(token: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        this.socket = io(
-          import.meta.env.VITE_API_URL || "http://localhost:3001",
-          {
-            auth: {
-              token,
-            },
-            transports: ["websocket", "polling"],
-          }
-        );
+        this.socket = io(import.meta.env.VITE_API_URL, {
+          auth: {
+            token,
+          },
+          transports: ["websocket", "polling"],
+        });
 
         this.socket.on("connect", () => {
           console.log("WebSocket connected");

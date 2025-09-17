@@ -6,6 +6,8 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+
   const handleLinkedInLogin = async () => {
     setIsLoading(true);
     setError(null);
@@ -24,7 +26,7 @@ const Login: React.FC = () => {
       const params = new URLSearchParams({
         response_type: "code",
         client_id: clientId,
-        redirect_uri: "http://localhost:3001/api/linkedin/callback",
+        redirect_uri: `${API_BASE_URL}/api/linkedin/callback`,
         scope: "openid email profile",
       });
 
