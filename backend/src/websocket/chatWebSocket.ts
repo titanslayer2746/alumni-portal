@@ -72,10 +72,7 @@ export class ChatWebSocket {
           return next(new Error("Authentication token required"));
         }
 
-        const decoded = jwt.verify(
-          token,
-          process.env.JWT_SECRET || "your-secret-key"
-        ) as any;
+        const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
 
         // Store user info in socket
         (socket as any).user = {
