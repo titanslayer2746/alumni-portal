@@ -56,12 +56,20 @@ class AuthService {
    */
   async getLinkedInUser(): Promise<User | null> {
     try {
+      console.log(
+        "Making request to:",
+        `${this.baseURL}/api/linkedin/get-user`
+      );
+      console.log("Cookies before request:", document.cookie);
+
       const response = await fetch(`${this.baseURL}/api/linkedin/get-user`, {
         method: "GET",
         credentials: "include",
       });
 
+      console.log("Response status:", response.status);
       const data = await response.json();
+      console.log("Response data:", data);
 
       if (response.ok && data.user) {
         return data.user;

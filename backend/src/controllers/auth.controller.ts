@@ -113,9 +113,11 @@ export const linkedInCallback = async (req: Request, res: Response) => {
 
 export const getUser = async (req: Request, res: Response) => {
   try {
+    console.log("Cookies received:", req.cookies);
     const token = req.cookies.token;
 
     if (!token) {
+      console.log("No token found in cookies");
       return res.status(403).json({
         success: false,
         error: "No token provided",
@@ -150,6 +152,7 @@ export const getUser = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error in getUser:", error);
+    console.error("JWT_SECRET exists:", !!process.env.JWT_SECRET);
     res.status(403).json({
       success: false,
       error: "Invalid token",
