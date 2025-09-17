@@ -7,6 +7,7 @@ import AuthRoutes from "./routes/auth.route.js";
 import JobRoutes from "./routes/job.route.js";
 import AdminRoutes from "./routes/admin.route.js";
 import ChatRoutes from "./routes/chat.route.js";
+import ImageProxyRoutes from "./routes/image-proxy.route.js";
 import ChatWebSocket from "./websocket/chatWebSocket.js";
 import cookieParser from "cookie-parser";
 
@@ -31,6 +32,7 @@ app.use("/api/linkedin", AuthRoutes);
 app.use("/api/jobs", JobRoutes);
 app.use("/api/admin", AdminRoutes);
 app.use("/api/chat", ChatRoutes);
+app.use("/api/proxy", ImageProxyRoutes);
 
 // Health check endpoint
 app.get("/health", (req, res) => {

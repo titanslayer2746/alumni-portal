@@ -16,6 +16,7 @@ import {
   X,
   ExternalLink,
 } from "lucide-react";
+import Avatar from "../components/Avatar";
 
 const ProfilePage: React.FC = () => {
   const { user, updateUser } = useAuth();
@@ -253,17 +254,14 @@ const ProfilePage: React.FC = () => {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-              className="w-40 h-40 mb-4 bg-gradient-to-br from-pink-500 to-red-500 rounded-full flex items-center justify-center overflow-hidden relative"
+              className="mb-4 relative"
             >
-              {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <UserIcon size={50} className="text-white" />
-              )}
+              <Avatar
+                src={user.avatar}
+                name={user.name}
+                size="xl"
+                className="w-40 h-40"
+              />
               <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-red-500/20 rounded-full"></div>
             </motion.div>
 

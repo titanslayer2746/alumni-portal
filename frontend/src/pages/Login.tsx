@@ -1,57 +1,38 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { User } from "lucide-react";
 import { motion } from "framer-motion";
 
 const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState();
-
-  useEffect(() => {
-    const getData = async () => {
-      const response = await fetch(
-        "http://localhost:3001/api/linkedin/get-user",
-        {
-          method: "get",
-          credentials: "include",
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setUser(data.user);
-      }
-    };
-
-    getData();
-  }, []);
 
   const handleLinkedInLogin = async () => {
     setIsLoading(true);
+    setError(null);
 
-    // Check if environment variable is available
-    const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
-    if (!clientId) {
-      console.error(
-        "LinkedIn Client ID not found. Please set VITE_LINKEDIN_CLIENT_ID in your .env file"
-      );
-      alert(
-        "LinkedIn integration not configured. Please contact administrator."
-      );
+    try {
+      // Check if environment variable is available
+      const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
+      if (!clientId) {
+        setError(
+          "LinkedIn integration not configured. Please contact administrator."
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: clientId,
+        redirect_uri: "http://localhost:3001/api/linkedin/callback",
+        scope: "openid email profile",
+      });
+
+      window.location.href = `https://www.linkedin.com/oauth/v2/authorization?${params}`;
+    } catch (error) {
+      setError("Failed to initiate LinkedIn login. Please try again.");
       setIsLoading(false);
-      return;
     }
-
-    const params = new URLSearchParams({
-      response_type: "code",
-      client_id: clientId,
-      redirect_uri: "http://localhost:3001/api/linkedin/callback",
-      scope: "openid email profile",
-    });
-
-    window.location.href = `https://www.linkedin.com/oauth/v2/authorization?${params}`;
-    setIsLoading(false);
   };
 
   return (

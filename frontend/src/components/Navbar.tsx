@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  User,
   LogOut,
   Briefcase,
   Home,
@@ -13,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import Avatar from "./Avatar";
 
 const Navbar: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
@@ -138,17 +138,11 @@ const Navbar: React.FC = () => {
                     whileHover={{ scale: 1.05 }}
                     onClick={() => navigate("/profile")}
                   >
-                    <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-red-500 rounded-full flex items-center justify-center overflow-hidden">
-                      {user?.avatar ? (
-                        <img
-                          src={user.avatar}
-                          alt={user.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <User size={18} className="text-white" />
-                      )}
-                    </div>
+                    <Avatar
+                      src={user?.avatar}
+                      name={user?.name || "User"}
+                      size="md"
+                    />
                     <div>
                       <p className="text-sm font-medium text-white">
                         {user?.name}
@@ -256,17 +250,7 @@ const Navbar: React.FC = () => {
                 {isAuthenticated && user && (
                   <div className="mb-8 p-4 bg-white/5 rounded-xl">
                     <div className="flex items-center space-x-3 mb-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-red-500 rounded-full flex items-center justify-center overflow-hidden">
-                        {user.avatar ? (
-                          <img
-                            src={user.avatar}
-                            alt={user.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <User size={20} className="text-white" />
-                        )}
-                      </div>
+                      <Avatar src={user.avatar} name={user.name} size="lg" />
                       <div>
                         <p className="text-white font-medium">{user.name}</p>
                         <p className="text-gray-400 text-sm capitalize">
