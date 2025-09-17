@@ -100,11 +100,10 @@ export const linkedInCallback = async (req: Request, res: Response) => {
     );
 
     res.cookie("token", token, {
-      httpOnly: false, // Allow JavaScript to access the cookie
-      secure: true, // true for HTTPS in production
-      sameSite: "none", // Required for cross-origin cookies
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
     });
-
     res.redirect(`${frontend_url}/referrals`);
   } catch (error) {
     res.status(500).json({ success: false, error });
@@ -114,7 +113,7 @@ export const linkedInCallback = async (req: Request, res: Response) => {
 export const getUser = async (req: Request, res: Response) => {
   try {
     console.log("Cookies received:", req.cookies);
-    const token = req.cookies.token;
+    const token = req.cookies.token || req.headers.authorization?.split(" ")[1];
 
     if (!token) {
       console.log("No token found in cookies");
